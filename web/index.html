@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#08111f">
+  <title>X Chassis Web Console</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./editorial.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><span class="eyebrow">C BOARD · CM4M</span><h1>X CHASSIS <span>WEB CONSOLE</span></h1></div>
+    <div class="top-actions"><button id="connect">连接串口</button><button id="estop" class="danger" disabled>急停</button></div>
+  </header>
+  <main class="shell">
+    <section class="status-row">
+      <span id="linkBadge" class="badge">串口 未连接</span><span id="driveBadge" class="badge">CM4M --</span>
+      <span id="imuBadge" class="badge">IMU --</span><span id="estopBadge" class="badge">急停 --</span>
+      <span id="versionBadge" class="badge">运动学 v--</span><span id="message" class="message">使用桌面 Chrome / Edge，通过 HTTPS 或 localhost 打开</span>
+    </section>
+    <div class="layout">
+      <aside class="rail">
+        <section class="panel">
+          <div class="panel-head"><h2>手动控制</h2><span class="muted">x 前 / y 左</span></div>
+          <div class="form-grid two"><label>速度<input id="speed" type="number" value="80" min="10" max="300"> <small>mm/s</small></label><label>旋转<input id="turn" type="number" value="10" min="1" max="45"> <small>deg/s</small></label></div>
+          <label class="check"><input id="yawHold" type="checkbox" checked> 平移保持航向</label>
+          <div class="dpad"><button data-v="1,1">↖</button><button data-v="1,0">前</button><button data-v="1,-1">↗</button><button data-v="0,1">左</button><button id="stop">停止</button><button data-v="0,-1">右</button><button data-v="-1,1">↙</button><button data-v="-1,0">后</button><button data-v="-1,-1">↘</button></div>
+          <div class="rotate"><button data-w="1">逆时针</button><button data-w="-1">顺时针</button></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2>目标位姿</h2><span class="muted">下位机闭环</span></div>
+          <div class="form-grid three"><label>X<input id="goalX" type="number" value="0.3" step="0.01"></label><label>Y<input id="goalY" type="number" value="0" step="0.01"></label><label>yaw<input id="goalYaw" type="number" value="0" step="1"><small>deg</small></label></div>
+          <label class="check"><input id="relative" type="checkbox" checked> 相对当前位置</label>
+          <button id="sendGoal" class="wide">发送目标位姿</button>
+        </section>
+        <section class="panel telemetry">
+          <div class="panel-head"><h2>实时状态</h2><span id="rtt" class="muted">-- ms</span></div>
+          <div class="metrics"><div><span>X</span><b id="poseX">--</b><small>m</small></div><div><span>Y</span><b id="poseY">--</b><small>m</small></div><div><span>yaw</span><b id="poseYaw">--</b><small>deg</small></div></div>
+          <div class="wheel-grid" id="wheels"><div>A<br>--</div><div>B<br>--</div><div>C<br>--</div><div>D<br>--</div></div>
+        </section>
+      </aside>
+      <section class="workspace">
+        <section class="panel path-panel">
+          <div class="panel-head"><div><span class="eyebrow">PATH PLANNER</span><h2>自定义航点路径</h2></div><div class="path-actions"><button id="clearPath">清空</button><button id="savePath">保存 JSON</button><button id="loadPath">加载 JSON</button><input id="filePath" type="file" accept="application/json" hidden></div></div>
+          <canvas id="map" width="900" height="520"></canvas>
+          <div class="path-footer"><span id="pathHint" class="muted">点击地图添加航点；表格可编辑 yaw。执行前会将当前位置置为 (0,0,0)。</span><button id="runPath" class="primary">置零并执行路径</button></div>
+        </section>
+        <section class="panel waypoint-panel"><div class="panel-head"><h2>航点列表</h2><span id="pointCount" class="muted">0 points</span></div><div class="table-wrap"><table><thead><tr><th>#</th><th>X / m</th><th>Y / m</th><th>yaw / deg</th><th></th></tr></thead><tbody id="waypoints"></tbody></table></div></section>
+        <section class="panel log-panel"><div class="panel-head"><h2>事件</h2><button id="clearLog">清空</button></div><pre id="log"></pre></section>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
