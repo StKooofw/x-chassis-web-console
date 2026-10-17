@@ -24,7 +24,7 @@ Connect the computer-side wireless serial adapter, click `连接串口`, and gra
 The page automatically sends `CLEAR_ESTOP` after a successful connection. The only emergency control is the red `急停` button.
 
 The custom path editor accepts map clicks in local coordinates `x=0..8 m`, `y=-2.5..2.5 m`.
-Edit each waypoint's yaw in the table, save/load JSON, then execute the path. The browser sends absolute `SET_GOAL` waypoints; the C board performs the pose loop.
+Edit each waypoint's yaw and speed in the table, save/load JSON, then execute the path. The browser sends 25-byte `SET_GOAL` waypoints with `speed_limit_mm_s`; older 21-byte goals remain compatible. The C board performs the pose loop and CM4M's stored channel limits are the final actuator cap.
 
 ## GitHub Pages
 
