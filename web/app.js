@@ -20,7 +20,20 @@ function origin(){return concat(f32(0),f32(0),f32(0))}
 function decodeStatus(p){const d=new DataView(p.buffer,p.byteOffset,p.byteLength);return{state:p[0],online:!!p[1],estop:!!p[2],yawHold:!!p[3],yaw:d.getFloat32(8,true),setpoint:d.getFloat32(12,true),vx:d.getFloat32(16,true),vy:d.getFloat32(20,true),wz:d.getFloat32(24,true),faults:d.getUint32(28,true),wheels:[0,1,2,3].map(i=>d.getInt32(32+i*4,true))}}
 function decodePose(p){const d=new DataView(p.buffer,p.byteOffset,p.byteLength);return{nav:p[0],imu:!!p[1],odom:!!p[2],id:d.getUint32(4,true),x:d.getFloat32(8,true),y:d.getFloat32(12,true),yaw:d.getFloat32(16,true),tx:d.getFloat32(20,true),ty:d.getFloat32(24,true),tyaw:d.getFloat32(28,true),vx:d.getFloat32(32,true),vy:d.getFloat32(36,true),wz:d.getFloat32(40,true),version:d.getUint32(60,true)}}
 async function retryRequest(command,payload=new Uint8Array(),attempts=3){let last;for(let i=0;i<attempts;i++){try{return await request(command,payload,1200)}catch(e){last=e;if(i+1<attempts)await new Promise(r=>setTimeout(r,80))}}throw last}
-async function sendGoalReliable(id,q){const payload=goal(id,q.x,q.y,q.yaw,40000,false);try{return await request(C.SET_GOAL,payload,1200)}catch(first){let pose;try{pose=decodePose(await retryRequest(C.POSE))}catch{throw first}if(pose.id===id)return new Uint8Array();try{return await request(C.SET_GOAL,payload,1200)}catch(second){try{pose=decodePose(await retryRequest(C.POSE));if(pose.id===id)return new Uint8Array()}catch{}throw second}}
+async function sendGoalReliable(id,q){
+  const payload=goal(id,q.x,q.y,q.yaw,40000,false);
+  try{return await request(C.SET_GOAL,payload,1200)}
+  catch(first){
+    let pose;
+    try{pose=decodePose(await retryRequest(C.POSE))}catch{return Promise.reject(first)}
+    if(pose.id===id)return new Uint8Array();
+    try{return await request(C.SET_GOAL,payload,1200)}
+    catch(second){
+      try{pose=decodePose(await retryRequest(C.POSE));if(pose.id===id)return new Uint8Array()}catch{}
+      throw second;
+    }
+  }
+}
 function setBadges(s,p){$("linkBadge").textContent="串口 在线";$("driveBadge").textContent=`CM4M ${s.online?"在线":"离线"}`;$("imuBadge").textContent=`IMU ${p.imu?"就绪":"校准中"}`;$("estopBadge").textContent=`急停 ${s.estop?"锁存":"已解除"}`;$("versionBadge").textContent=`运动学 v${p.version}`;$("estop").disabled=false;$("rtt").textContent="实时"}
 function updateTelemetry(s,p){setBadges(s,p);$("poseX").textContent=p.x.toFixed(3);$("poseY").textContent=p.y.toFixed(3);$("poseYaw").textContent=(p.yaw*180/Math.PI).toFixed(1);[s.wheels[0],s.wheels[1],s.wheels[2],s.wheels[3]].forEach((v,i)=>$("wheels").children[i].innerHTML=`${"ABCD"[i]}<br>${(v/1000).toFixed(1)} rpm`)}
 async function poll(){if(!connected||pollBusy||pathRunning)return;pollBusy=true;try{const s=decodeStatus(await retryRequest(C.STATUS)),p=decodePose(await retryRequest(C.POSE));updateTelemetry(s,p)}catch(e){$("message").textContent=e.message}finally{pollBusy=false}}
