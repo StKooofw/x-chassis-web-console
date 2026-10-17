@@ -1,6 +1,12 @@
 # X Chassis Web Console
 
 This is a static Web Serial upper computer for the C-board + CM4M X-layout chassis.
+
+It uses the same versioned `A5 5A` protocol as the ROS 2 bridge and lower
+controller. Manual velocity commands carry the streaming flag and are refreshed
+every 100 ms; the C board clears them after 300 ms without a fresh frame. The
+browser retries a lost ACK with the same sequence number, so the lower
+controller replays the response without executing a motion command twice.
 It speaks the existing C-board protocol at 115200 8N1 and does not require Python or a local backend.
 
 Use desktop Chrome or Edge over `https://` (GitHub Pages) or `http://localhost`.

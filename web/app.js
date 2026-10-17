@@ -10,11 +10,21 @@ function parseFrames(data){rx=concat(rx,data);const frames=[];while(rx.length){l
 async function readLoop(){try{while(reader){const {value,done}=await reader.read();if(done)break;for(const f of parseFrames(value))dispatch(f)}}catch(e){if(connected)log(`串口读取中断：${e.message}`)}}
 function dispatch(f){const p=pending.get(f.seq);if(!p)return;pending.delete(f.seq);if(f.command!==C.ACK||f.payload[0]!==p.command||f.payload[1])p.reject(new Error(`命令 0x${p.command.toString(16)} 错误 ${f.payload[1]??"?"}`));else p.resolve(f.payload.slice(2))}
 async function request(command,payload=new Uint8Array(),timeout=900){
-  const run=async()=>{if(!writer)throw Error("尚未连接串口");const f=makeFrame(command,payload);const promise=new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(f.seq);reject(new Error(`命令 0x${command.toString(16)} 超时`))},timeout);pending.set(f.seq,{command,resolve:v=>{clearTimeout(timer);resolve(v)},reject:e=>{clearTimeout(timer);reject(e)}})});await writer.write(f.bytes);return promise};
+  const run=async()=>{if(!writer)throw Error("尚未连接串口");const f=makeFrame(command,payload);let last;
+    for(let attempt=0;attempt<3;attempt++){
+      try{
+        let timer;
+        const promise=new Promise((resolve,reject)=>{timer=setTimeout(()=>{pending.delete(f.seq);reject(new Error(`命令 0x${command.toString(16)} 超时`))},attempt?Math.min(350,timeout):timeout);pending.set(f.seq,{command,resolve:v=>{clearTimeout(timer);resolve(v)},reject:e=>{clearTimeout(timer);reject(e)}})});
+        try{await writer.write(f.bytes)}catch(e){clearTimeout(timer);pending.delete(f.seq);throw e}
+        return await promise;
+      }catch(e){last=e;if(attempt<2)await new Promise(r=>setTimeout(r,80))}
+    }
+    throw last;
+  };
   const next=ioChain.then(run,run);ioChain=next.catch(()=>{});return next;
 }
 function i32(v){const b=new Uint8Array(4);new DataView(b.buffer).setInt32(0,v,true);return b}function u32(v){const b=new Uint8Array(4);new DataView(b.buffer).setUint32(0,v,true);return b}function f32(v){const b=new Uint8Array(4);new DataView(b.buffer).setFloat32(0,v,true);return b}
-function velocity(vx,vy,wz,enable=true,hold=false){return concat(i32(vx),i32(vy),i32(wz),new Uint8Array([enable?(1|(hold?2:0)):0]))}
+function velocity(vx,vy,wz,enable=true,hold=false,streaming=true){return concat(i32(vx),i32(vy),i32(wz),new Uint8Array([enable?(1|(hold?2:0)|(streaming?4:0)):0]))}
 function goal(id,x,y,yaw,timeout=30000,relative=true){return concat(u32(id),f32(x),f32(y),f32(yaw),u32(timeout),new Uint8Array([relative?1:0]))}
 function origin(){return concat(f32(0),f32(0),f32(0))}
 function decodeStatus(p){const d=new DataView(p.buffer,p.byteOffset,p.byteLength);return{state:p[0],online:!!p[1],estop:!!p[2],yawHold:!!p[3],yaw:d.getFloat32(8,true),setpoint:d.getFloat32(12,true),vx:d.getFloat32(16,true),vy:d.getFloat32(20,true),wz:d.getFloat32(24,true),faults:d.getUint32(28,true),wheels:[0,1,2,3].map(i=>d.getInt32(32+i*4,true))}}
@@ -40,7 +50,7 @@ async function poll(){if(!connected||pollBusy||pathRunning)return;pollBusy=true;
 async function connect(){if(!navigator.serial){$("message").textContent="当前浏览器不支持 Web Serial";return}try{port=await navigator.serial.requestPort();await port.open({baudRate:115200,dataBits:8,stopBits:1,parity:"none",flowControl:"none"});writer=port.writable.getWriter();reader=port.readable.getReader();connected=true;readTask=readLoop();$("connect").textContent="断开串口";$("estop").disabled=false;log("串口已连接，自动解除急停");await request(C.CLEAR);await poll();pollTimer=setInterval(poll,250)}catch(e){$("message").textContent=e.message;await disconnect()}}
 async function disconnect(){connected=false;if(pollTimer){clearInterval(pollTimer);pollTimer=null}for(const p of pending.values())p.reject(Error("串口已断开"));pending.clear();try{await reader?.cancel()}catch{}try{reader?.releaseLock()}catch{}try{writer?.releaseLock()}catch{}try{await port?.close()}catch{}reader=null;writer=null;port=null;$("connect").textContent="连接串口";$("estop").disabled=true;$("linkBadge").textContent="串口 未连接";log("串口已断开")}
 async function estop(){if(!writer)return;pathAbort=true;try{await request(C.ESTOP);log("已发送急停")}catch(e){log(e.message)}}
-async function stop(){pathAbort=true;try{await request(C.CANCEL);await request(C.SET_VELOCITY,velocity(0,0,0,false,false));log("已停止当前动作")}catch(e){log(e.message)}}
+async function stop(){pathAbort=true;try{await request(C.CANCEL);await request(C.SET_VELOCITY,velocity(0,0,0,false,false,false));log("已停止当前动作")}catch(e){log(e.message)}}
 async function manual(vx,vy,wz,hold){try{await request(C.SET_VELOCITY,velocity(vx,vy,wz,true,hold))}catch(e){$("message").textContent=e.message}}
 function beginManual(vx,vy,wz){if(manualTimer)clearInterval(manualTimer);const speed=Number($("speed").value),scale=vx&&vy?Math.SQRT1_2:1,hold=!wz&&$("yawHold").checked;manual(vx*speed/scale,vy*speed/scale,wz*Number($("turn").value)*Math.PI/180*1000,hold);manualTimer=setInterval(()=>manual(vx*speed/scale,vy*speed/scale,wz*Number($("turn").value)*Math.PI/180*1000,hold),100)}
 function endManual(){if(manualTimer){clearInterval(manualTimer);manualTimer=null;stop()}}
