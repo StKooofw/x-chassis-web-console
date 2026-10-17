@@ -10,7 +10,7 @@ controller replays the response without executing a motion command twice.
 During a route, a short `GET_POSE` loss is logged and retried without aborting
 the waypoint; only 8 seconds without a valid pose ends the route. Any route
 error now sends `CANCEL` and a zero velocity command before returning to idle.
-Path execution uses a 10 cm look-ahead while the chassis is still moving, so
+Path execution uses a 35 cm look-ahead while the chassis is still moving, so
 intermediate points do not force a full stop. Manual velocity frames are sent
 from a latest-value stream and do not wait for each ACK before sending the next
 frame. If the pose leaves the route by more than 28 cm or the lower controller

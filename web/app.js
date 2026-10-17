@@ -1,5 +1,6 @@
 const C={PING:1,STATUS:2,POSE:3,SET_VELOCITY:0x10,ESTOP:0x13,CLEAR:0x14,SET_GOAL:0x20,ORIGIN:0x21,CANCEL:0x22,HEARTBEAT:0x23,ACK:0x7e};
 const $=id=>document.getElementById(id); const enc=new TextEncoder();
+const PATH_LOOKAHEAD_M=0.35;
 let port=null,reader=null,writer=null,readTask=null,pollTimer=null,seq=0,pending=new Map(),rx=new Uint8Array(),pollBusy=false,goalId=1,manualTimer=null,points=[],selected=-1,connected=false,pathRunning=false,pathAbort=false,ioChain=Promise.resolve(),velocityPending=null,velocitySending=false;
 
 function log(text){const el=$("log"); el.textContent+=`${new Date().toLocaleTimeString()}  ${text}\n`; el.scrollTop=el.scrollHeight}
@@ -84,7 +85,7 @@ async function followRouteTarget(target,routeIndex,lastPoint){
     try{p=decodePose(await retryRequest(C.POSE,new Uint8Array(),1,300));lastPoseGood=performance.now()}
     catch(e){poseTimeouts++;log(`航点 ${routeIndex+1} 查询位姿暂时超时（${poseTimeouts}），继续等待恢复`);if(performance.now()-lastPoseGood>8000)throw e;await new Promise(r=>setTimeout(r,120));continue}
     if(p.id===id&&p.nav===4)return {recover:true,pose:p,reason:"下位机中止目标"};
-    const projection=projectRoute(points,p.x,p.y,routeIndex),yawError=wrapAngle(target.yaw-p.yaw),near=Math.hypot(target.x-p.x,target.y-p.y)<=.10&&Math.abs(yawError)<=.12,moving=Math.hypot(p.vx,p.vy)>.025;
+    const projection=projectRoute(points,p.x,p.y,routeIndex),yawError=wrapAngle(target.yaw-p.yaw),near=Math.hypot(target.x-p.x,target.y-p.y)<=PATH_LOOKAHEAD_M&&Math.abs(yawError)<=.12,moving=Math.hypot(p.vx,p.vy)>.025;
     if(p.id===id&&p.nav===3)return {done:true,pose:p};
     if(!lastPoint&&p.id===id&&near&&moving){log(`航点 ${routeIndex+1} 前视切换`);return {done:true,pose:p};}
     if(p.id===id&&projection.distance>.28&&i>3)return {recover:true,pose:p,projection,reason:`横向偏差 ${projection.distance.toFixed(2)} m`};
