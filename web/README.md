@@ -10,6 +10,10 @@ controller replays the response without executing a motion command twice.
 During a route, a short `GET_POSE` loss is logged and retried without aborting
 the waypoint; only 8 seconds without a valid pose ends the route. Any route
 error now sends `CANCEL` and a zero velocity command before returning to idle.
+Path execution uses a 10 cm look-ahead while the chassis is still moving, so
+intermediate points do not force a full stop. Manual velocity frames are sent
+from a latest-value stream and do not wait for each ACK before sending the next
+frame.
 It speaks the existing C-board protocol at 115200 8N1 and does not require Python or a local backend.
 
 Use desktop Chrome or Edge over `https://` (GitHub Pages) or `http://localhost`.
