@@ -7,6 +7,9 @@ controller. Manual velocity commands carry the streaming flag and are refreshed
 every 100 ms; the C board clears them after 300 ms without a fresh frame. The
 browser retries a lost ACK with the same sequence number, so the lower
 controller replays the response without executing a motion command twice.
+During a route, a short `GET_POSE` loss is logged and retried without aborting
+the waypoint; only 8 seconds without a valid pose ends the route. Any route
+error now sends `CANCEL` and a zero velocity command before returning to idle.
 It speaks the existing C-board protocol at 115200 8N1 and does not require Python or a local backend.
 
 Use desktop Chrome or Edge over `https://` (GitHub Pages) or `http://localhost`.
