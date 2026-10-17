@@ -45,13 +45,13 @@
         <section class="panel path-panel">
           <div class="panel-head"><div><span class="eyebrow">PATH PLANNER</span><h2>自定义航点路径</h2></div><div class="path-actions"><button id="clearPath">清空</button><button id="savePath">保存 JSON</button><button id="loadPath">加载 JSON</button><input id="filePath" type="file" accept="application/json" hidden></div></div>
           <canvas id="map" width="900" height="520"></canvas>
-          <div class="path-footer"><span id="pathHint" class="muted">点击地图添加航点；表格可编辑 yaw。执行前会将当前位置置为 (0,0,0)。</span><button id="runPath" class="primary">置零并执行路径</button></div>
+          <div class="path-footer"><span id="pathHint" class="muted">点击地图添加航点；表格可编辑 yaw。执行前会将当前位置置为 (0,0,0)。</span><label class="check"><input id="pathBlend" type="checkbox" checked>连续航点</label><button id="runPath" class="primary">置零并执行路径</button></div>
         </section>
         <section class="panel waypoint-panel"><div class="panel-head"><h2>航点列表</h2><span id="pointCount" class="muted">0 points</span></div><div class="table-wrap"><table><thead><tr><th>#</th><th>X / m</th><th>Y / m</th><th>yaw / deg</th><th>速度 / m/s</th><th></th></tr></thead><tbody id="waypoints"></tbody></table></div></section>
         <section class="panel log-panel"><div class="panel-head"><h2>事件</h2><button id="clearLog">清空</button></div><pre id="log"></pre></section>
       </section>
     </div>
   </main>
-  <script type="module" src="./app.js?v=20261017-10"></script>
+  <script type="module" src="./app.js?v=20261017-11"></script>
 </body>
 </html>

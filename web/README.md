@@ -17,6 +17,8 @@ frame. If the pose leaves the route by more than 28 cm or the lower controller
 aborts a goal, the page projects the pose onto the remaining route and sends a
 bounded recovery target ahead of that projection. Only repeated recovery
 failures cause a cancel and zero-speed stop.
+The `连续航点` switch sets the firmware blend flag on intermediate goals;
+the final goal always keeps normal approach braking and settling.
 It speaks the existing C-board protocol at 115200 8N1 and does not require Python or a local backend.
 
 Use desktop Chrome or Edge over `https://` (GitHub Pages) or `http://localhost`.

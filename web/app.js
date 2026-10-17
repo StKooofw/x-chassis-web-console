@@ -26,13 +26,13 @@ async function request(command,payload=new Uint8Array(),timeout=900){
 }
 function i32(v){const b=new Uint8Array(4);new DataView(b.buffer).setInt32(0,v,true);return b}function u32(v){const b=new Uint8Array(4);new DataView(b.buffer).setUint32(0,v,true);return b}function f32(v){const b=new Uint8Array(4);new DataView(b.buffer).setFloat32(0,v,true);return b}
 function velocity(vx,vy,wz,enable=true,hold=false,streaming=true){return concat(i32(vx),i32(vy),i32(wz),new Uint8Array([enable?(1|(hold?2:0)|(streaming?4:0)):0]))}
-function goal(id,x,y,yaw,timeout=30000,relative=true,speed=0.262){return concat(u32(id),f32(x),f32(y),f32(yaw),u32(timeout),new Uint8Array([relative?1:0]),u32(Math.max(10,Math.round((speed??0.262)*1000))))}
+function goal(id,x,y,yaw,timeout=30000,relative=true,speed=0.262,blend=false){return concat(u32(id),f32(x),f32(y),f32(yaw),u32(timeout),new Uint8Array([(relative?1:0)|(blend?4:0)]),u32(Math.max(10,Math.round((speed??0.262)*1000))))}
 function origin(){return concat(f32(0),f32(0),f32(0))}
 function decodeStatus(p){const d=new DataView(p.buffer,p.byteOffset,p.byteLength);return{state:p[0],online:!!p[1],estop:!!p[2],yawHold:!!p[3],yaw:d.getFloat32(8,true),setpoint:d.getFloat32(12,true),vx:d.getFloat32(16,true),vy:d.getFloat32(20,true),wz:d.getFloat32(24,true),faults:d.getUint32(28,true),wheels:[0,1,2,3].map(i=>d.getInt32(32+i*4,true))}}
 function decodePose(p){const d=new DataView(p.buffer,p.byteOffset,p.byteLength);return{nav:p[0],imu:!!p[1],odom:!!p[2],id:d.getUint32(4,true),x:d.getFloat32(8,true),y:d.getFloat32(12,true),yaw:d.getFloat32(16,true),tx:d.getFloat32(20,true),ty:d.getFloat32(24,true),tyaw:d.getFloat32(28,true),vx:d.getFloat32(32,true),vy:d.getFloat32(36,true),wz:d.getFloat32(40,true),version:d.getUint32(60,true)}}
 async function retryRequest(command,payload=new Uint8Array(),attempts=1,timeout=500){let last;for(let i=0;i<attempts;i++){try{return await request(command,payload,timeout)}catch(e){last=e;if(i+1<attempts)await new Promise(r=>setTimeout(r,80))}}throw last}
-async function sendGoalReliable(id,q){
-  const payload=goal(id,q.x,q.y,q.yaw,40000,false,q.speed);
+async function sendGoalReliable(id,q,lastPoint=false){
+  const payload=goal(id,q.x,q.y,q.yaw,40000,false,q.speed,!lastPoint&&$("pathBlend").checked);
   try{return await request(C.SET_GOAL,payload,1200)}
   catch(first){
     let pose;
@@ -77,7 +77,7 @@ function routePointAt(route,progress){const i=Math.max(0,Math.min(route.length-2
 function projectRoute(route,x,y,startIndex){let best={distance:Infinity,progress:startIndex};for(let i=Math.max(0,startIndex-1);i<route.length-1;i++){const a=route[i],b=route[i+1],dx=b.x-a.x,dy=b.y-a.y,len2=dx*dx+dy*dy,t=len2?Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/len2)):0,px=a.x+dx*t,py=a.y+dy*t,d=Math.hypot(x-px,y-py);if(d<best.distance)best={distance:d,progress:i+t}}return best}
 async function followRouteTarget(target,routeIndex,lastPoint){
   const id=goalId++;
-  await sendGoalReliable(id,target);
+  await sendGoalReliable(id,target,lastPoint);
   let lastPoseGood=performance.now(),poseTimeouts=0;
   for(let i=0;i<260;i++){
     if(pathAbort)throw Error("路径已停止");
