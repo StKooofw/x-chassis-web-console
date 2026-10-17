@@ -31,7 +31,7 @@
         <section class="panel">
           <div class="panel-head"><h2>目标位姿</h2><span class="muted">下位机闭环</span></div>
           <div class="form-grid three"><label>X<input id="goalX" type="number" value="0.3" step="0.01"></label><label>Y<input id="goalY" type="number" value="0" step="0.01"></label><label>yaw<input id="goalYaw" type="number" value="0" step="1"><small>deg</small></label></div>
-          <label class="field">航点速度<input id="goalSpeed" type="number" value="0.262" min="0.01" max="0.6" step="0.001"><small>m/s，CM4M 最终限幅</small></label>
+          <label class="field">航点速度<input id="goalSpeed" type="number" value="0.262" min="0.01" step="0.001"><small>m/s，CM4M 最终限幅</small></label>
           <label class="check"><input id="relative" type="checkbox" checked> 相对当前位置</label>
           <button id="sendGoal" class="wide">发送目标位姿</button>
         </section>
@@ -52,6 +52,6 @@
       </section>
     </div>
   </main>
-  <script type="module" src="./app.js?v=20261017-8"></script>
+  <script type="module" src="./app.js?v=20261017-9"></script>
 </body>
 </html>
