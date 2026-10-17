@@ -13,7 +13,10 @@ error now sends `CANCEL` and a zero velocity command before returning to idle.
 Path execution uses a 10 cm look-ahead while the chassis is still moving, so
 intermediate points do not force a full stop. Manual velocity frames are sent
 from a latest-value stream and do not wait for each ACK before sending the next
-frame.
+frame. If the pose leaves the route by more than 28 cm or the lower controller
+aborts a goal, the page projects the pose onto the remaining route and sends a
+bounded recovery target ahead of that projection. Only repeated recovery
+failures cause a cancel and zero-speed stop.
 It speaks the existing C-board protocol at 115200 8N1 and does not require Python or a local backend.
 
 Use desktop Chrome or Edge over `https://` (GitHub Pages) or `http://localhost`.

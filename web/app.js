@@ -71,5 +71,55 @@ async function sendGoal(){const x=Number($("goalX").value)/1000,y=Number($("goal
 function mapPoint(x,y){const c=$("map"),m=38;return{x:m+x/8*(c.width-2*m),y:c.height-m-(y+2.5)/5*(c.height-2*m)}}function worldPoint(x,y){const c=$("map"),m=38;return{x:Math.max(0,Math.min(8,(x-m)/(c.width-2*m)*8)),y:Math.max(-2.5,Math.min(2.5,(c.height-m-y)/(c.height-2*m)*5-2.5))}}
 function drawMap(){const c=$("map"),p=c.getContext("2d");p.fillStyle="#091827";p.fillRect(0,0,c.width,c.height);const m=38;p.strokeStyle="#263b55";for(let x=0;x<=8;x++){const a=mapPoint(x,-2.5),b=mapPoint(x,2.5);p.beginPath();p.moveTo(a.x,a.y);p.lineTo(b.x,b.y);p.stroke()}for(let y=-2;y<=2;y++){const a=mapPoint(0,y),b=mapPoint(8,y);p.beginPath();p.moveTo(a.x,a.y);p.lineTo(b.x,b.y);p.stroke()}p.strokeStyle="#5f7896";p.strokeRect(m,m,c.width-2*m,c.height-2*m);if(points.length>1){p.strokeStyle="#65d8bd";p.lineWidth=3;p.beginPath();points.forEach((q,i)=>{const z=mapPoint(q.x,q.y);i?p.lineTo(z.x,z.y):p.moveTo(z.x,z.y)});p.stroke();p.lineWidth=1}points.forEach((q,i)=>{const z=mapPoint(q.x,q.y);p.fillStyle=i===selected?"#f2b86b":"#68aaff";p.beginPath();p.arc(z.x,z.y,7,0,Math.PI*2);p.fill();p.strokeStyle="#fff";p.beginPath();p.moveTo(z.x,z.y);p.lineTo(z.x+Math.cos(q.yaw)*22,z.y-Math.sin(q.yaw)*22);p.stroke();p.fillStyle="#dbe9f8";p.fillText(String(i+1),z.x+9,z.y-9)})}
 function renderPoints(){const body=$("waypoints");body.innerHTML="";points.forEach((q,i)=>{const tr=document.createElement("tr");tr.innerHTML=`<td>${i+1}</td><td><input data-i="${i}" data-k="x" type="number" step="0.01" value="${q.x.toFixed(3)}"></td><td><input data-i="${i}" data-k="y" type="number" step="0.01" value="${q.y.toFixed(3)}"></td><td><input data-i="${i}" data-k="yaw" type="number" step="1" value="${(q.yaw*180/Math.PI).toFixed(1)}"></td><td><button data-del="${i}">删除</button></td>`;body.appendChild(tr)});$("pointCount").textContent=`${points.length} points`;drawMap()}
-async function runPath(){if(pathRunning||!points.length){if(!points.length)log("请先添加航点");return}pathRunning=true;pathAbort=false;$("runPath").disabled=true;try{await retryRequest(C.ORIGIN,origin());await retryRequest(C.CLEAR);for(const q of points){if(pathAbort)throw Error("路径已停止");const id=goalId++;const pointIndex=points.indexOf(q)+1;const lastPoint=pointIndex===points.length;await sendGoalReliable(id,q);log(`执行航点 ${pointIndex}/${points.length}`);let done=false,lastPoseGood=performance.now(),poseTimeouts=0;for(let i=0;i<200;i++){if(pathAbort)throw Error("路径已停止");let p;try{p=decodePose(await retryRequest(C.POSE,new Uint8Array(),1,300));lastPoseGood=performance.now()}catch(e){poseTimeouts++;log(`航点 ${pointIndex} 查询位姿暂时超时（${poseTimeouts}），继续等待恢复`);if(performance.now()-lastPoseGood>8000)throw e;await new Promise(r=>setTimeout(r,120));continue}if(p.id===id&&p.nav===4)throw Error("下位机中止当前航点");const yawError=Math.atan2(Math.sin(q.yaw-p.yaw),Math.cos(q.yaw-p.yaw));const near=Math.hypot(q.x-p.x,q.y-p.y)<=.10&&Math.abs(yawError)<=.12;const moving=Math.hypot(p.vx,p.vy)>.025;if(p.id===id&&p.nav===3){done=true;break}if(!lastPoint&&p.id===id&&near&&moving){done=true;log(`航点 ${pointIndex} 前视切换`);break}await new Promise(r=>setTimeout(r,120))}if(!done)throw Error("航点执行超时")}log("自定义路径完成")}catch(e){log(e.message);try{await request(C.CANCEL);await request(C.SET_VELOCITY,velocity(0,0,0,false,false,false));log("路径异常，已取消当前目标并清零速度")}catch(stopError){log(`路径停止回包失败：${stopError.message}`)}}finally{pathRunning=false;$("runPath").disabled=false;poll()}}
+function wrapAngle(a){return Math.atan2(Math.sin(a),Math.cos(a))}
+function routePointAt(route,progress){const i=Math.max(0,Math.min(route.length-2,Math.floor(progress))),t=Math.max(0,Math.min(1,progress-i)),a=route[i],b=route[i+1],dyaw=wrapAngle(b.yaw-a.yaw);return{x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,yaw:wrapAngle(a.yaw+dyaw*t)}}
+function projectRoute(route,x,y,startIndex){let best={distance:Infinity,progress:startIndex};for(let i=Math.max(0,startIndex-1);i<route.length-1;i++){const a=route[i],b=route[i+1],dx=b.x-a.x,dy=b.y-a.y,len2=dx*dx+dy*dy,t=len2?Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/len2)):0,px=a.x+dx*t,py=a.y+dy*t,d=Math.hypot(x-px,y-py);if(d<best.distance)best={distance:d,progress:i+t}}return best}
+async function followRouteTarget(target,routeIndex,lastPoint){
+  const id=goalId++;
+  await sendGoalReliable(id,target);
+  let lastPoseGood=performance.now(),poseTimeouts=0;
+  for(let i=0;i<260;i++){
+    if(pathAbort)throw Error("路径已停止");
+    let p;
+    try{p=decodePose(await retryRequest(C.POSE,new Uint8Array(),1,300));lastPoseGood=performance.now()}
+    catch(e){poseTimeouts++;log(`航点 ${routeIndex+1} 查询位姿暂时超时（${poseTimeouts}），继续等待恢复`);if(performance.now()-lastPoseGood>8000)throw e;await new Promise(r=>setTimeout(r,120));continue}
+    if(p.id===id&&p.nav===4)return {recover:true,pose:p,reason:"下位机中止目标"};
+    const projection=projectRoute(points,p.x,p.y,routeIndex),yawError=wrapAngle(target.yaw-p.yaw),near=Math.hypot(target.x-p.x,target.y-p.y)<=.10&&Math.abs(yawError)<=.12,moving=Math.hypot(p.vx,p.vy)>.025;
+    if(p.id===id&&p.nav===3)return {done:true,pose:p};
+    if(!lastPoint&&p.id===id&&near&&moving){log(`航点 ${routeIndex+1} 前视切换`);return {done:true,pose:p};}
+    if(p.id===id&&projection.distance>.28&&i>3)return {recover:true,pose:p,projection,reason:`横向偏差 ${projection.distance.toFixed(2)} m`};
+    await new Promise(r=>setTimeout(r,120));
+  }
+  throw Error("航点执行超时");
+}
+async function runPath(){
+  if(pathRunning||!points.length){if(!points.length)log("请先添加航点");return}
+  pathRunning=true;pathAbort=false;$("runPath").disabled=true;
+  try{
+    await retryRequest(C.ORIGIN,origin());await retryRequest(C.CLEAR);
+    let routeIndex=0,recoveries=0;
+    while(routeIndex<points.length){
+      if(pathAbort)throw Error("路径已停止");
+      let target=points[routeIndex],result;
+      for(let attempt=0;attempt<4;attempt++){
+        log(`执行航点 ${routeIndex+1}/${points.length}`);
+        result=await followRouteTarget(target,routeIndex,routeIndex===points.length-1);
+        if(result.done)break;
+        recoveries++;
+        if(recoveries>6)throw Error("连续路径捕获失败");
+        const projection=result.projection||projectRoute(points,result.pose.x,result.pose.y,routeIndex);
+        const recoveryProgress=Math.min(points.length-1,Math.max(routeIndex,projection.progress+0.35));
+        const nextIndex=Math.max(routeIndex,Math.min(points.length-1,Math.floor(recoveryProgress)));
+        target=routePointAt(points,recoveryProgress);routeIndex=nextIndex;
+        log(`路径偏差，重新捕获到第 ${routeIndex+1} 段（${result.reason}）`);
+      }
+      if(!result||!result.done)throw Error("路径捕获失败");
+      routeIndex++;
+    }
+    log("自定义路径完成");
+  }catch(e){
+    log(e.message);
+    try{await request(C.CANCEL);await request(C.SET_VELOCITY,velocity(0,0,0,false,false,false));log("路径异常，已取消当前目标并清零速度")}catch(stopError){log(`路径停止回包失败：${stopError.message}`)}
+  }finally{pathRunning=false;$("runPath").disabled=false;poll()}
+}
 $("connect").onclick=()=>connected?disconnect():connect();$("estop").onclick=estop;$("stop").onclick=stop;$("sendGoal").onclick=sendGoal;$("runPath").onclick=runPath;$("clearLog").onclick=()=>$("log").textContent="";$("clearPath").onclick=()=>{points=[];selected=-1;renderPoints()};$("map").onclick=e=>{const r=e.target.getBoundingClientRect(),q=worldPoint((e.clientX-r.left)*e.target.width/r.width,(e.clientY-r.top)*e.target.height/r.height),last=points.at(-1);points.push({x:q.x,y:q.y,yaw:last?Math.atan2(q.y-last.y,q.x-last.x):0});selected=points.length-1;renderPoints()};$("waypoints").onchange=e=>{const el=e.target;if(!el.dataset.i)return;const i=Number(el.dataset.i),k=el.dataset.k;points[i][k]=k==="yaw"?Number(el.value)*Math.PI/180:Number(el.value);selected=i;drawMap()};$("waypoints").onclick=e=>{if(e.target.dataset.del){points.splice(Number(e.target.dataset.del),1);selected=-1;renderPoints()}};$("savePath").onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(points,null,2)],{type:"application/json"}));a.download="custom_route.json";a.click();URL.revokeObjectURL(a.href)};$("loadPath").onclick=()=>$("filePath").click();$("filePath").onchange=async e=>{try{points=JSON.parse(await e.target.files[0].text());selected=-1;renderPoints()}catch{$("message").textContent="路径 JSON 无效"}};document.querySelectorAll("[data-v]").forEach(b=>{b.onpointerdown=()=>{const [x,y]=b.dataset.v.split(",").map(Number);beginManual(x,y,0)};b.onpointerup=endManual;b.onpointerleave=endManual});document.querySelectorAll("[data-w]").forEach(b=>{b.onpointerdown=()=>beginManual(0,0,Number(b.dataset.w));b.onpointerup=endManual;b.onpointerleave=endManual});window.addEventListener("resize",drawMap);drawMap();
